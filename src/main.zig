@@ -51,9 +51,6 @@ pub fn main() anyerror!void {
     var total_files: u16 = 0;
     var total_dirs: u16 = 1; // the input directory.
 
-    // @BUG: it code prints garbage. There's probabily a lifetime error, where
-    // we are trying to reference a pointer that was already deallocated
-
     // Recursively iterate over all the directories.
     while (stack.popOrNull()) |d| {
         try d.indent(&stdout);
@@ -65,13 +62,13 @@ pub fn main() anyerror!void {
         while (try iter.next()) |entry| {
             switch (entry.kind) {
                 // When file, directly print it.
-                .File => {
+                .file => {
                     try d.indent(&stdout);
                     try stdout.print("| {s}\n", .{entry.name});
                     total_files += 1;
                 },
                 // When dir, append to the stack to iterate next.
-                .Directory => {
+                .directory => {
                     if (d.path[d.path.len - 1] == '/') {
                         try stack.append(TreeEntry{
                             .depth = d.depth + 1,
@@ -157,9 +154,7 @@ test "Read a directory" {
 
 test "Stack" {
     const test_allocator = std.testing.allocator;
-    var stack = std.ArrayList([]const u8).init(
-        test_allocator,
-    );
+    var stack = std.ArrayList([]const u8).init(test_allocator);
     defer stack.deinit();
 
     const files: [3][]const u8 = [_][]const u8{ "X", "Y", "Z" };
