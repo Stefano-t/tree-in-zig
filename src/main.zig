@@ -142,8 +142,8 @@ test "Read a directory" {
     var iter = dir.iterate();
     while (try iter.next()) |entry| {
         switch (entry.kind) {
-            .File => file_count += 1,
-            .Directory => dir_count += 1,
+            .file => file_count += 1,
+            .directory => dir_count += 1,
             else => {},
         }
     }
