@@ -12,7 +12,7 @@ const TreeEntry = struct {
     path: []const u8, // relative path + basename of the file
 
     /// Prints a suitable amount of tabs based on the depth of this entry.
-    fn indent(self: *const TreeEntry, writer: *const fs.File.Writer) !void {
+    fn indent(self: *const TreeEntry, writer: anytype) !void {
         var loop: u8 = 0;
         while (loop < self.depth) : (loop += 1) {
             try writer.print("\t", .{});
@@ -21,13 +21,12 @@ const TreeEntry = struct {
 };
 
 pub fn main() anyerror!void {
-    if (os.argv.len < 2) {
-        std.log.warn("Not enough argument to pass", .{});
-        os.exit(1);
-    }
+    // Buffer writer for stdout.
+    const stdout_file = std.io.getStdOut().writer();
+    var buffered = std.io.bufferedWriter(stdout_file);
+    const stdout = buffered.writer();
 
-    const stdout = std.io.getStdOut().writer();
-    const dir: []const u8 = mem.span(os.argv[1]);
+    const dir: []const u8 = if (os.argv.len < 2) "." else mem.span(os.argv[1]);
 
     // Use an arena allocator since we are running a command line tools that
     // does not last long
@@ -78,11 +77,8 @@ pub fn main() anyerror!void {
                         });
                     } else {
                         const norm_dir = try concat(allocator, d.path, "/");
-                        try stack.append(TreeEntry{
-                            .depth = d.depth + 1,
-                            .basename = try allocator.dupe(u8, entry.name),
-                            .path = try concat(allocator, norm_dir, entry.name)
-                        });
+                        const basename = try allocator.dupe(u8, entry.name);
+                        try stack.append(TreeEntry{ .depth = d.depth + 1, .basename = basename, .path = try concat(allocator, norm_dir, entry.name) });
                     }
                     total_dirs += 1;
                     allocator.free(entry.name);
@@ -92,6 +88,7 @@ pub fn main() anyerror!void {
         }
     }
     try stdout.print("{d} files, {d} directories\n", .{ total_files, total_dirs });
+    try buffered.flush();
 }
 
 // @FIXME: support multiple strings.
