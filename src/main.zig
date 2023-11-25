@@ -48,15 +48,16 @@ pub fn main() anyerror!void {
         .path = dir,
     });
 
-    var total_files: u16 = 0;
-    var total_dirs: u16 = 1; // the input directory.
+    var total_files: u32 = 0;
+    var total_dirs: u32 = 1; // the input directory.
 
     // Recursively iterate over all the directories.
     while (stack.popOrNull()) |d| {
         try d.indent(&stdout);
         try stdout.print("{s}\n", .{d.basename});
 
-        const fd = try fs.cwd().openIterableDir(d.path, .{});
+        var fd = try fs.cwd().openIterableDir(d.path, .{});
+        defer fd.close();
         var iter = fd.iterate();
 
         while (try iter.next()) |entry| {
@@ -64,7 +65,7 @@ pub fn main() anyerror!void {
                 // When file, directly print it.
                 .file => {
                     try d.indent(&stdout);
-                    try stdout.print("| {s}\n", .{entry.name});
+                    try stdout.print("∟ {s}\n", .{entry.name});
                     total_files += 1;
                 },
                 // When dir, append to the stack to iterate next.
@@ -72,14 +73,19 @@ pub fn main() anyerror!void {
                     if (d.path[d.path.len - 1] == '/') {
                         try stack.append(TreeEntry{
                             .depth = d.depth + 1,
-                            .basename = entry.name,
+                            .basename = try allocator.dupe(u8, entry.name),
                             .path = try concat(allocator, d.path, entry.name),
                         });
                     } else {
                         const norm_dir = try concat(allocator, d.path, "/");
-                        try stack.append(TreeEntry{ .depth = d.depth + 1, .basename = entry.name, .path = try concat(allocator, norm_dir, entry.name) });
+                        try stack.append(TreeEntry{
+                            .depth = d.depth + 1,
+                            .basename = try allocator.dupe(u8, entry.name),
+                            .path = try concat(allocator, norm_dir, entry.name)
+                        });
                     }
                     total_dirs += 1;
+                    allocator.free(entry.name);
                 },
                 else => {},
             }
@@ -94,8 +100,8 @@ fn concat(allocator: mem.Allocator, a: []const u8, b: []const u8) ![]u8 {
     // Allocate spaces for both input string.
     const result = try allocator.alloc(u8, a.len + b.len);
     // Copy the input strings in their slots.
-    mem.copy(u8, result, a);
-    mem.copy(u8, result[a.len..], b);
+    @memcpy(result[0..a.len], a);
+    @memcpy(result[a.len..], b);
     return result;
 }
 
